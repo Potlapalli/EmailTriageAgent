@@ -130,37 +130,4 @@ record_triage_decision     (classifies urgency)
 
 ---
 
-## Key Concepts Demonstrated
 
-| Concept | Where |
-|---|---|
-| Tool definition (schema) | `ToolDefinitions.cs` |
-| Tool execution (handler) | `ToolHandlers.cs` — `Dispatch()` method |
-| Agent lifecycle | `AgentFactory.cs` — create once, reuse by ID |
-| Agent run loop | `AgentRunner.cs` — poll → handle → submit |
-| Structured output from agent | `record_triage_decision` tool |
-| Domain modelling | `EmailModels.cs` |
-
----
-
-## Production Checklist
-
-- [ ] Replace simulated tool bodies with real Gmail / Google Calendar API calls
-- [ ] Store `AGENT_ID` in Azure Key Vault, not `.env`
-- [ ] Use `ManagedIdentityCredential` instead of `DefaultAzureCredential` in production
-- [ ] Store `thread_id` per user in Redis / Cosmos DB for multi-session continuity
-- [ ] Add retry logic with exponential backoff for tool API calls
-- [ ] Add Application Insights tracing (one line: `Azure.Experimental.EnableGenAITracing`)
-- [ ] Add input validation / content filtering before submitting user prompts
-
----
-
-## Extending This Project
-
-Good next steps for learning:
-
-1. **Wire up real Gmail** — add `Google.Apis.Gmail.v1` NuGet package
-2. **Wire up real Google Calendar** — add `Google.Apis.Calendar.v3`
-3. **Add a Slack notification tool** — post the triage summary to a channel
-4. **Persist results to Cosmos DB** — treat each `TriageSession` as an event
-5. **Add a web UI** — wrap the runner in an ASP.NET Core minimal API
