@@ -23,8 +23,8 @@ public static class ToolDefinitions
             "properties": {
                 "max_results": {
                     "type": "integer",
-                    "description": "Maximum number of unread emails to fetch. Defaults to 10.",
-                    "default": 10
+                    "description": "Maximum number of unread emails to fetch. Defaults to 3.",
+                    "default": 3
                 },
                 "label": {
                     "type": "string",

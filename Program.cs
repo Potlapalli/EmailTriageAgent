@@ -1,64 +1,74 @@
 ﻿using DotNetEnv;
 using EmailTriageAgent.Agent;
 using EmailTriageAgent.Services;
-
- //─────────────────────────────────────────────────────────────────────────────
- // Email Triage Agent — Entry Point
-
- // TWO MODES:
- //   dotnet run              → run triage (uses AGENT_ID from .env if set)
- //   dotnet run -- bootstrap → create a new agent and print its ID
- //   dotnet run -- delete    → delete the agent stored in AGENT_ID
- //─────────────────────────────────────────────────────────────────────────────
-
+using EmailTriageAgent.Tools;
 
 Env.TraversePath().Load();
 
-
 var mode = args.FirstOrDefault()?.ToLower() ?? "run";
 var endpoint = Environment.GetEnvironmentVariable("PROJECT_ENDPOINT")
-               ?? throw new InvalidOperationException(
-                   "PROJECT_ENDPOINT is not set. " +
-                   "Copy .env.example to .env and fill in your Azure AI Foundry project endpoint.");
+               ?? throw new InvalidOperationException("PROJECT_ENDPOINT not set.");
+
+var clientSecretPath = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET_PATH")
+                       ?? "client_secret.json";
 
 var factory = new AgentFactory(endpoint);
 
 switch (mode)
 {
-    // ── Bootstrap: create the agent once, save the ID ─────────────────────────
     case "bootstrap":
         Console.WriteLine("═══════════════════════════════════════════");
         Console.WriteLine("  BOOTSTRAP: Creating agent in Azure...");
         Console.WriteLine("═══════════════════════════════════════════");
         var newAgent = await factory.GetOrCreateAgentAsync(agentId: null);
-        Console.WriteLine();
         Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine($"  ✅ Done! Add this to your .env file:");
+        Console.WriteLine($"\n  ✅ Add this to your .env:");
         Console.WriteLine($"     AGENT_ID={newAgent.Id}");
         Console.ResetColor();
         break;
 
-    // ── Delete: clean up the agent from Azure ─────────────────────────────────
     case "delete":
-        var agentToDelete = Environment.GetEnvironmentVariable("AGENT_ID")
-                            ?? throw new InvalidOperationException("AGENT_ID not set in .env");
-        Console.Write($"Delete agent {agentToDelete}? (yes/no): ");
+        var toDelete = Environment.GetEnvironmentVariable("AGENT_ID")
+                       ?? throw new InvalidOperationException("AGENT_ID not set.");
+        Console.Write($"Delete agent {toDelete}? (yes/no): ");
         if (Console.ReadLine()?.Trim().ToLower() == "yes")
-            await factory.DeleteAgentAsync(agentToDelete);
+            await factory.DeleteAgentAsync(toDelete);
         break;
 
-    // ── Run: execute a triage session ─────────────────────────────────────────
     default:
-        Console.WriteLine("═══════════════════════════════════════════");
-        Console.WriteLine("  EMAIL TRIAGE AGENT");
-        Console.WriteLine("═══════════════════════════════════════════");
+        Console.WriteLine("═══════════════════════════════════════════════════");
+        Console.WriteLine("  EMAIL TRIAGE AGENT  (Gmail + Calendar connected)");
+        Console.WriteLine("═══════════════════════════════════════════════════");
         Console.WriteLine();
 
-        // Reuse existing agent or create on-the-fly if AGENT_ID is not set
+        // ── Step 1: Authenticate Gmail ─────────────────────────────────────
+        // First run: browser opens for consent
+        // Later runs: loads token silently from gmail_token/
+        Console.WriteLine("[Setup] Connecting to Gmail...");
+        var gmail = await GmailApiService.CreateAsync(
+            clientSecretPath: clientSecretPath,
+            tokenStorePath: "gmail_token"
+        );
+
+        // ── Step 2: Authenticate Google Calendar ───────────────────────────
+        // Uses same client_secret.json, separate token store (calendar_token/)
+        // First run: browser opens again for Calendar consent
+        // Later runs: loads silently
+        Console.WriteLine("[Setup] Connecting to Google Calendar...");
+        var calendar = await GoogleCalendarService.CreateAsync(
+            clientSecretPath: clientSecretPath,
+            tokenStorePath: "calendar_token"
+        );
+
+        // ── Step 3: Wire both into tool handlers ───────────────────────────
+        var handlers = new ToolHandlers(gmail, calendar);
+
+        // ── Step 4: Get or reuse the Azure AI agent ────────────────────────
         var agentId = Environment.GetEnvironmentVariable("AGENT_ID");
         var agent = await factory.GetOrCreateAgentAsync(agentId);
 
-        var runner = new AgentRunner(factory.Client);
+        // ── Step 5: Run the triage session ────────────────────────────────
+        var runner = new AgentRunner(factory.Client, handlers);
 
         try
         {
