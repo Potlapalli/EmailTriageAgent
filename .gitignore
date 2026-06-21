@@ -367,3 +367,4 @@ FodyWeavers.xsd
 
 ## Google OAuth credentials
 client_secret.json
+/.env
