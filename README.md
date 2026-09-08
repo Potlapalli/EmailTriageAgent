@@ -135,8 +135,6 @@ record_triage_decision     (classifies urgency)
 
 Good next steps for learning:
 
-1. **Wire up real Gmail** — add `Google.Apis.Gmail.v1` NuGet package
-2. **Wire up real Google Calendar** — add `Google.Apis.Calendar.v3`
-3. **Add a Slack notification tool** — post the triage summary to a channel
-4. **Persist results to Cosmos DB** — treat each `TriageSession` as an event
-5. **Add a web UI** — wrap the runner in an ASP.NET Core minimal API
+1. **Add a Slack notification tool** — post the triage summary to a channel
+2. **Persist results to Cosmos DB** — treat each `TriageSession` as an event
+3. **Add a web UI** — wrap the runner in an ASP.NET Core minimal API
