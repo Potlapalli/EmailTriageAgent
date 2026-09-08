@@ -87,6 +87,10 @@ public static class ToolDefinitions
         {
             "type": "object",
             "properties": {
+                "email_id": {
+                    "type": "string",
+                    "description": "The Gmail message ID this calendar block follows up on. Used to prevent duplicate blocks on retry."
+                },
                 "title": {
                     "type": "string",
                     "description": "Event title, e.g. 'Follow up: Project Deadline Email'"
@@ -104,7 +108,7 @@ public static class ToolDefinitions
                     "description": "End time in ISO 8601 format."
                 }
             },
-            "required": ["title", "description", "start_time", "end_time"]
+            "required": ["email_id", "title", "description", "start_time", "end_time"]
         }
         """)
     );

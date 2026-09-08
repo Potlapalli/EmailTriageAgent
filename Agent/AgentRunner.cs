@@ -31,9 +31,9 @@ public class AgentRunner
         await _client.Messages.CreateMessageAsync(
             threadId: thread.Id,
             role: MessageRole.User,
-            content: "Please triage my inbox. Fetch my 3 most recent unread emails only," + 
+            content: "Please triage my inbox. Fetch my 3 most recent unread emails only," +
                      "mark them as read" +
-                     "classify urgency, draft replies for anything urgent, and block time" + 
+                     "classify urgency, draft replies for anything urgent, and block time" +
                      "on my calendar for anything that needs focused follow-up work."
         );
 
@@ -105,6 +105,14 @@ public class AgentRunner
                 Console.ResetColor();
                 result = System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message });
             }
+
+            // Log what actually goes back to the model — a truncated Gmail
+            // payload here is what usually causes an unexplained reclassification
+            // on the next turn, and it was previously invisible unless it threw.
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            var preview = result.Length > 300 ? result[..300] + "... (truncated in log)" : result;
+            Console.WriteLine($"  [Tool result] {fn.Name} → {preview}");
+            Console.ResetColor();
 
             outputs.Add(new ToolOutput(call.Id, result));
         }

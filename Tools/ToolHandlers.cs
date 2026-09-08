@@ -16,6 +16,14 @@ public class ToolHandlers
     private readonly List<CalendarBlock> _calendarBlocks = new();
     private readonly Dictionary<string, Email> _emailCache = new();
 
+    // ─── Idempotency ────────────────────────────────────────────────────────
+    // Keyed on "{emailId}|{action}". A run that dies mid-loop and restarts
+    // (or an agent that retries a call) hits this before touching Gmail/Calendar
+    // again — write actions become a no-op that returns the original result.
+    private readonly Dictionary<string, string> _actionReceipts = new();
+
+    private static string ReceiptKey(string emailId, string action) => $"{emailId}|{action}";
+
     public ToolHandlers(GmailApiService gmail, GoogleCalendarService calendar)
     {
         _gmail = gmail;
@@ -54,28 +62,49 @@ public class ToolHandlers
 
     public async Task<string> CreateDraftReplyAsync(string emailId, string replyBody)
     {
+        var key = ReceiptKey(emailId, "create_draft_reply");
+        if (_actionReceipts.TryGetValue(key, out var existing))
+        {
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine($"  [Tool] create_draft_reply → {emailId} (already drafted this run, no-op)");
+            Console.ResetColor();
+            return existing;
+        }
+
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine($"  [Tool] create_draft_reply → {emailId}");
         Console.WriteLine($"         Preview: \"{replyBody[..Math.Min(80, replyBody.Length)]}...\"");
         Console.ResetColor();
 
-        return await _gmail.CreateDraftReplyAsync(emailId, replyBody);
+        var result = await _gmail.CreateDraftReplyAsync(emailId, replyBody);
+        _actionReceipts[key] = result;
+        return result;
     }
 
     // ─── Tool: create_calendar_block ──────────────────────────────────────
     // ✅ Now wired to real Google Calendar API
 
     public async Task<string> CreateCalendarBlockAsync(
-        string title, string description, string startTime, string endTime)
+        string emailId, string title, string description, string startTime, string endTime)
     {
-        Console.WriteLine($"  [Tool] create_calendar_block → \"{title}\"");
+        var key = ReceiptKey(emailId, "create_calendar_block");
+        if (_actionReceipts.TryGetValue(key, out var existing))
+        {
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine($"  [Tool] create_calendar_block → {emailId} (already blocked this run, no-op)");
+            Console.ResetColor();
+            return existing;
+        }
+
+        Console.WriteLine($"  [Tool] create_calendar_block → {emailId} \"{title}\"");
 
         // ✅ Real Google Calendar API call
         var result = await _calendar.CreateCalendarBlockAsync(title, description, startTime, endTime);
+        _actionReceipts[key] = result;
 
         // Also record locally for the session summary
         _calendarBlocks.Add(new CalendarBlock(
-            EmailId: "unknown",
+            EmailId: emailId,
             Title: title,
             Description: description,
             StartTime: startTime,
@@ -138,6 +167,7 @@ public class ToolHandlers
             ),
 
             "create_calendar_block" => await CreateCalendarBlockAsync(
+                emailId: args.GetProperty("email_id").GetString()!,
                 title: args.GetProperty("title").GetString()!,
                 description: args.GetProperty("description").GetString()!,
                 startTime: args.GetProperty("start_time").GetString()!,
